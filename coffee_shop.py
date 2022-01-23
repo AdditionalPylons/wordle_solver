@@ -16,18 +16,14 @@ def solve_wordle(answer_dict, guess, results):
 
     results = []
 
-    for answer in answer_dict:
-        if len(answer) != len(guess):
-            answer_dict.remove(answer)
         
-
     for answer in answer_dict:    
-        valid = True    
-        for n in range(len(guess1)):
-            if guess[n] == '_':
+        valid = True
+        for index, letter in enumerate(guess):
+            if letter == '_':
                 pass
             else:
-                if answer[n] != guess[n]:
+                if answer[index] != letter:
                     valid = False
                     break
         if valid:
