@@ -2,7 +2,6 @@ from enum import Enum
 from pathlib import Path
 import re
 
-guess1 = ['_', 'i', 'r', '_', 't']
 
 class DataState(Enum):
     white = "empty"
@@ -10,32 +9,55 @@ class DataState(Enum):
     yellow = "present"
     green = "correct"
 
+solution = 'crimp'
 
-def solve_wordle(answer_dict, guess, results):
+guess1 = 'audio'
+result1 = [DataState.grey, DataState.grey, DataState.grey, DataState.yellow, DataState.grey]
+
+guess2 = 'terms'
+result2 = [DataState.grey, DataState.grey, DataState.yellow, DataState.green, DataState.grey]
+
+guess3 = 'grimy'
+result3 = [DataState.grey, DataState.green, DataState.green, DataState.green, DataState.grey]
+
+def solve_wordle(answer_dict, guess, result):
 
 
-    results = []
+    possible_answers = []
 
         
-    for answer in answer_dict:    
+    for answer in answer_dict:
+        answer = answer.casefold()
+        answer_set = set(answer)
         valid = True
         for index, letter in enumerate(guess):
-            if letter == '_':
-                pass
-            else:
+
+            if result[index] == DataState.grey:
+                if letter in answer_set:
+                    valid = False
+                    break
+
+            elif result[index] == DataState.yellow:
+                if answer[index] == letter or letter not in answer_set:
+                    valid = False
+                    break
+
+            elif result[index] == DataState.green:
                 if answer[index] != letter:
                     valid = False
                     break
         if valid:
-                results.append(answer)
+                possible_answers.append(answer)
                         
 
 
-    print(results)
+    return possible_answers
 
 
 capitals = re.compile('[A-Z]')
 
 with open("/home/bill/Code/python_code/wordle_solver/word_list.txt") as word_list:
-    words = [word.strip() for word in word_list.readlines() if len(word.strip()) == 5 and not capitals.match(word[0])]
-    solve_wordle(answer_dict=words, guess=guess1, results=None)
+    words = [word.strip() for word in word_list.readlines() if len(word.strip()) == 5]
+    round_1 = solve_wordle(answer_dict=words, guess=guess1, result=result1)
+    round_2 = (solve_wordle(answer_dict=round_1, guess=guess2, result=result2))
+    print(solve_wordle(answer_dict=round_2, guess=guess3, result=result3))
