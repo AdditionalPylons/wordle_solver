@@ -9,15 +9,19 @@ from time import sleep
 
 
 class DataState(Enum):
-    white = "empty"
+    blank = "empty"
+    white = "tbd"
     grey = "absent"
     yellow = "present"
     green = "correct"
+
+ALL_WHITES = [DataState.white for _ in range(5)]
 
 
 def open_site(driver):
     site = "https://www.powerlanguage.co.uk/wordle/"
     driver.get(site)
+    sleep(1)
 
 def close_overlay(driver):
     game_app_shadow = driver.find_element(By.CSS_SELECTOR, 'body>game-app').shadow_root
@@ -32,9 +36,13 @@ def make_guess(driver, word):
     actions.perform()
     sleep(2)
 
+def clear_guess(driver):
+    actions = ActionChains(driver)
+    actions.send_keys([Keys.BACKSPACE for _ in range(5)])
+    actions.perform()
+
 def get_results(driver, row_num):
     row_num -= 1
-    guess = []
     results = []
 
     for tile_num in range(5):
@@ -45,11 +53,16 @@ def get_results(driver, row_num):
         board = board_container.find_element(By.CSS_SELECTOR, '#board')
         game_row_shadow = board.find_elements(By.CSS_SELECTOR, 'game-row')[row_num].shadow_root
         game_tile = game_row_shadow.find_elements(By.CSS_SELECTOR, 'game-tile')[tile_num]
+
+        value = game_tile.get_attribute('evaluation')
+
+        if value is None:
+            results = ALL_WHITES
+            break
+
+        results.append(DataState(value))
         
-        guess.append(game_tile.get_attribute('letter'))
-        results.append(game_tile.get_attribute('evaluation'))
-        
-    return ''.join(guess), results
+    return results
 
 def get_possible_answers(guess, result, answer_dict=None):
     if answer_dict == None:
@@ -63,25 +76,32 @@ def get_possible_answers(guess, result, answer_dict=None):
         answer = answer.casefold()
         answer_set = set(answer)
         valid = True
-        for index, letter in enumerate(guess):
 
-            # Handle grey
-            if result[index] == DataState.grey:
-                if letter in answer_set:
-                    valid = False
-                    break
+        if result == ALL_WHITES:
+            possible_answers = answer_dict
+            valid = False
 
-            # Handle yellow
-            elif result[index] == DataState.yellow:
-                if answer[index] == letter or letter not in answer_set:
-                    valid = False
-                    break
+        else:
+            for index, letter in enumerate(guess):
 
-            # Handle green
-            elif result[index] == DataState.green:
-                if answer[index] != letter:
-                    valid = False
-                    break
+                # Handle grey
+                if result[index] == DataState.grey:
+                    if letter in answer_set:
+                        valid = False
+                        break
+
+                # Handle yellow
+                elif result[index] == DataState.yellow:
+                    if answer[index] == letter or letter not in answer_set:
+                        valid = False
+                        break
+
+                # Handle green
+                elif result[index] == DataState.green:
+                    if answer[index] != letter:
+                        valid = False
+                        break
+                
         if valid:
                 possible_answers.append(answer)
                         
@@ -91,18 +111,21 @@ def get_possible_answers(guess, result, answer_dict=None):
 def solve():
     with webdriver.Chrome() as driver:
         results = None
+        row_num = 1
+        answer_dict = None
+        guess = 'audio'
+
         open_site(driver)
         close_overlay(driver)
-        #while results != [DataState.green for x in range(5)]:
-        make_guess(driver, 'audio')
-        make_guess(driver, 'terms')
-        make_guess(driver, 'lisps')
-        make_guess(driver, 'stink')
-
-        print(get_results(driver, 1))
-        print(get_results(driver, 2))
-        print(get_results(driver, 3))
-        print(get_results(driver, 4))
-
+        while results != [DataState.green for _ in range(5)]:
+            make_guess(driver, guess)
+            results = get_results(driver, row_num)
+            answer_dict = get_possible_answers(guess, results, answer_dict)
+            guess = choice(answer_dict)
+            if results == ALL_WHITES:
+                clear_guess(driver)
+                guess = choice(answer_dict)
+            else:
+                row_num += 1
 
 solve()
