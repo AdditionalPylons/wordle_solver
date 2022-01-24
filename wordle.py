@@ -133,4 +133,5 @@ def solve():
             else:
                 row_num += 1
 
-solve()
+if __name__ == '__main__':
+    solve()
