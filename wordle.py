@@ -74,25 +74,26 @@ def get_possible_answers(guess, result, answer_dict=None):
         
     for answer in answer_dict:
         answer = answer.casefold()
-        answer_set = set(answer)
+        letter_set = set(answer)
         valid = True
 
         if result == ALL_WHITES:
             possible_answers = answer_dict
             valid = False
+            break
 
         else:
             for index, letter in enumerate(guess):
 
                 # Handle grey
                 if result[index] == DataState.grey:
-                    if letter in answer_set:
+                    if letter in letter_set:
                         valid = False
                         break
 
                 # Handle yellow
                 elif result[index] == DataState.yellow:
-                    if answer[index] == letter or letter not in answer_set:
+                    if answer[index] == letter or letter not in letter_set:
                         valid = False
                         break
 
@@ -104,7 +105,9 @@ def get_possible_answers(guess, result, answer_dict=None):
                 
         if valid:
                 possible_answers.append(answer)
-                        
+
+    if len(possible_answers) == 0:
+        raise ValueError("There must be at least one answer left to try!") 
 
     return possible_answers
 
@@ -118,9 +121,11 @@ def solve():
         open_site(driver)
         close_overlay(driver)
         while results != [DataState.green for _ in range(5)]:
+            print(answer_dict)
             make_guess(driver, guess)
             results = get_results(driver, row_num)
             answer_dict = get_possible_answers(guess, results, answer_dict)
+            print(answer_dict)
             guess = choice(answer_dict)
             if results == ALL_WHITES:
                 clear_guess(driver)
