@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 from random import choice
 
 from selenium import webdriver
@@ -14,6 +14,11 @@ class DataState(Enum):
     grey = "absent"
     yellow = "present"
     green = "correct"
+
+class Strategy(Enum):
+    brute_force = auto()
+    rank_by_letter = auto()
+    rank_by_word = auto()
 
 ALL_WHITES = [DataState.white for _ in range(5)]
 
@@ -41,9 +46,9 @@ def clear_guess(driver):
     actions.send_keys([Keys.BACKSPACE for _ in range(5)])
     actions.perform()
 
-def get_results(driver, row_num):
+def get_result(driver, row_num):
     row_num -= 1
-    results = []
+    result = []
 
     for tile_num in range(5):
         game_app_shadow = driver.find_element(By.CSS_SELECTOR, 'body>game-app').shadow_root
@@ -57,17 +62,18 @@ def get_results(driver, row_num):
         value = game_tile.get_attribute('evaluation')
 
         if value is None:
-            results = ALL_WHITES
+            result = ALL_WHITES
             break
 
-        results.append(DataState(value))
+        result.append(DataState(value))
         
-    return results
+    return result
 
-def get_possible_answers(guess, result, answer_dict=None):
-    if answer_dict == None:
+def get_possible_answers(guess=None, result=None, answer_dict=None):
+    if guess == answer_dict == result == None:
         with open("/home/bill/Code/python_code/wordle_solver/word_list.txt") as word_list:
             answer_dict = (word.strip() for word in word_list.readlines() if len(word.strip()) == 5 and word.strip().isalpha())
+            return answer_dict
 
     possible_answers = []
 
@@ -76,6 +82,7 @@ def get_possible_answers(guess, result, answer_dict=None):
         answer = answer.casefold()
         letter_set = set(answer)
         valid = True
+        seen_letters = set()
 
         if result == ALL_WHITES:
             possible_answers = answer_dict
@@ -87,7 +94,10 @@ def get_possible_answers(guess, result, answer_dict=None):
 
                 # Handle grey
                 if result[index] == DataState.grey:
-                    if letter in letter_set:
+                    if letter in seen_letters:
+                        valid = True
+                        pass
+                    elif letter in letter_set:
                         valid = False
                         break
 
@@ -103,6 +113,8 @@ def get_possible_answers(guess, result, answer_dict=None):
                         valid = False
                         break
                 
+                seen_letters.add(letter)
+                
         if valid:
                 possible_answers.append(answer)
 
@@ -111,23 +123,61 @@ def get_possible_answers(guess, result, answer_dict=None):
 
     return possible_answers
 
+def get_next_guess(answer_dict: dict, is_first_guess: bool, seed: str, strategy: Strategy):
+    if seed and is_first_guess:
+        next_guess = seed
+
+    elif strategy == Strategy.brute_force:
+        next_guess = choice(answer_dict)
+
+    elif strategy == Strategy.rank_by_letter:
+        best_score = 0
+        next_guess = None
+        
+        # 0-indexed for comparison
+        letter_rankings = {
+            0: ["s", "a", "r", "e", "o", "i"],
+            1: ["a", "o", "e", "i", "r", "s"],
+            2: ["r", "a", "i", "o", "e", "s"],
+            3: ["e", "a", "i", "o", "r", "s"],
+            4: ["s", "e", "a", "r", "o", "i"],
+        }
+        for answer in answer_dict:
+            score = 0
+            for index, letter in enumerate(answer):
+                for ranked_index, ranked_letter in enumerate(letter_rankings[index]):
+                    if letter == ranked_letter:
+                        score += (6-(ranked_index)) # Reverse ranking order and credit end of list, i.e. index of 0 == score of 6
+            if score > best_score:
+                best_score = score
+                next_guess = answer
+    
+        if not next_guess:
+            next_guess = choice(answer_dict)
+
+    return next_guess
+
 def solve():
     with webdriver.Chrome() as driver:
-        results = None
+        result = None
         row_num = 1
         answer_dict = None
-        guess = 'audio'
+        guess = None
+        is_first_guess = True
+        seed = "roate"
 
         open_site(driver)
         close_overlay(driver)
-        while results != [DataState.green for _ in range(5)]:
+        while result != [DataState.green for _ in range(5)]:
+            answer_dict = get_possible_answers(guess=guess, result=result, answer_dict=answer_dict)
             print(answer_dict)
+            guess = get_next_guess(answer_dict, is_first_guess=is_first_guess, seed=seed, strategy=Strategy.rank_by_letter)
+            is_first_guess = False
+            print(guess)
             make_guess(driver, guess)
-            results = get_results(driver, row_num)
-            answer_dict = get_possible_answers(guess, results, answer_dict)
-            print(answer_dict)
-            guess = choice(answer_dict)
-            if results == ALL_WHITES:
+            result = get_result(driver, row_num)
+            print(result)
+            if result == ALL_WHITES:
                 clear_guess(driver)
                 guess = choice(answer_dict)
             else:
